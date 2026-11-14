@@ -1,43 +1,86 @@
-import { reviews, json, clean, newCode, SEED_REVIEWS } from "../lib/shared.mjs";
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Gestion des avis — SATURA BEAUTY</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap" style="padding-top:24px;padding-bottom:40px">
+  <h1 style="font-size:30px;margin-bottom:12px">Avis à valider</h1>
 
-async function listByStatus(status) {
-  const store = reviews();
-  const { blobs } = await store.list({ prefix: `${status}/` });
-  const all = await Promise.all(blobs.map((b) => store.get(b.key, { type: "json" })));
-  return all.filter(Boolean).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-}
+  <form class="form" id="login" novalidate>
+    <label>Mot de passe administrateur<input type="password" id="pw" autocomplete="current-password"></label>
+    <div id="loginMsg"></div>
+    <button class="btn" type="submit">Entrer</button>
+  </form>
 
-export default async (req) => {
-  /* Public : uniquement les avis validés */
-  if (req.method === "GET") {
-    const approved = await listByStatus("approved");
-    const list = [...approved, ...SEED_REVIEWS].map((r) => ({
-      name: r.name, city: r.city, rating: r.rating, text: r.text,
-    }));
-    const avg = list.length ? list.reduce((s, r) => s + r.rating, 0) / list.length : 0;
-    return json({ reviews: list.slice(0, 30), count: list.length, average: Math.round(avg * 10) / 10 });
+  <div id="panel" hidden>
+    <div class="tabs"><button class="chip" id="logout" aria-pressed="false">Quitter</button></div>
+    <div id="msg"></div>
+    <div id="content"></div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  let pw = "";
+  try { pw = sessionStorage.getItem("satura-admin") || ""; } catch {}
+
+  async function api(body) {
+    const r = await fetch("/api/admin", {
+      method: body ? "POST" : "GET",
+      headers: { "content-type": "application/json", "x-admin-password": pw },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(d.error || "Erreur"), { status: r.status });
+    return d;
   }
-
-  /* Envoi d'un avis : il reste "en attente" jusqu'à ta validation */
-  if (req.method === "POST") {
-    let b;
-    try { b = await req.json(); } catch { return json({ error: "Requête invalide" }, 400); }
-    if (b.website) return json({ ok: true }); // robot : on fait semblant
-
-    const name = clean(b.name, 60);
-    const city = clean(b.city, 60);
-    const text = clean(b.text, 500);
-    const rating = Math.floor(Number(b.rating));
-    if (name.length < 2) return json({ error: "Merci d'indiquer ton prénom." }, 400);
-    if (!(rating >= 1 && rating <= 5)) return json({ error: "Choisis une note de 1 à 5." }, 400);
-    if (text.length < 10) return json({ error: "Ton avis est un peu court (10 caractères minimum)." }, 400);
-
-    const id = newCode();
-    await reviews().setJSON(`pending/${id}`, { id, name, city, rating, text, createdAt: new Date().toISOString() });
-    return json({ ok: true });
+  function lock(msg) {
+    pw = "";
+    try { sessionStorage.removeItem("satura-admin"); } catch {}
+    $("#panel").hidden = true;
+    $("#login").hidden = false;
+    if (msg) $("#loginMsg").innerHTML = `<div class="msg err">${esc(msg)}</div>`;
   }
-
-  return json({ error: "Méthode non autorisée" }, 405);
-};
-
-export const config = { path: "/api/reviews" };
+  async function load() {
+    try {
+      const { pending } = await api();
+      $("#content").innerHTML = pending.length
+        ? pending.map((r) => `
+          <div class="rev" style="margin-bottom:12px">
+            <div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
+            <q>${esc(r.text)}</q>
+            <small>${esc(r.name)}${r.city ? " · " + esc(r.city) : ""}</small>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn" data-rid="${esc(r.id)}" data-act="approve-review">Publier</button>
+              <button class="btn ghost" data-rid="${esc(r.id)}" data-act="delete-review">Supprimer</button>
+            </div>
+          </div>`).join("")
+        : `<p class="sub">Aucun avis en attente.</p>`;
+      $("#login").hidden = true;
+      $("#panel").hidden = false;
+      try { sessionStorage.setItem("satura-admin", pw); } catch {}
+    } catch (e) {
+      if (e.status === 401) lock(pw ? "Mot de passe incorrect." : "");
+      else $("#msg").innerHTML = `<div class="msg err">${esc(e.message)}</div>`;
+    }
+  }
+  $("#login").addEventListener("submit", (e) => { e.preventDefault(); pw = $("#pw").value; load(); });
+  $("#logout").addEventListener("click", () => lock(""));
+  $("#content").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-rid]");
+    if (!b) return;
+    try { await api({ action: b.dataset.act, id: b.dataset.rid }); load(); }
+    catch (err) { $("#msg").innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+  });
+  if (pw) load();
+})();
+</script>
+</body>
+</html>
