@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ta commande — SATURA BEAUTY</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="center">
+  <div class="box" id="box">
+    <div class="big" id="icon">⏳</div>
+    <h1 id="title">Vérification du paiement…</h1>
+    <p id="text" style="color:var(--muted)">Ne ferme pas cette page, ça prend quelques secondes.</p>
+    <div class="code" id="code" hidden></div>
+    <div id="items" style="font-size:14px;color:var(--muted);margin-bottom:16px"></div>
+    <div id="actions" style="display:grid;gap:10px"></div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.getElementById(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const params = new URLSearchParams(location.search);
+  const code = (params.get("order") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const cancelled = params.get("cancel") === "1";
+  const home = `<a class="btn ghost" href="/">Retour à la boutique</a>`;
+
+  function show(icon, title, text, extra = "") {
+    $("icon").textContent = icon;
+    $("title").textContent = title;
+    $("text").textContent = text;
+    $("actions").innerHTML = extra + home;
+  }
+
+  if (code.length !== 8) { show("🤔", "Commande introuvable", "Le lien semble incomplet."); return; }
+  $("code").hidden = false;
+  $("code").textContent = code;
+
+  let tries = 0;
+  async function check() {
+    tries++;
+    let d;
+    try {
+      const r = await fetch("/api/order-status?code=" + encodeURIComponent(code));
+      if (r.status === 404) { show("🤔", "Commande introuvable", "Vérifie le lien ou contacte-nous."); return; }
+      d = await r.json();
+    } catch {
+      if (tries < 20) return setTimeout(check, 3000);
+      show("📶", "Connexion difficile", "Recharge la page dans un instant.");
+      return;
+    }
+
+    $("items").innerHTML = (d.items || []).map((i) => `${i.qty} × ${esc(i.name)}`).join("<br>");
+
+    if (["paid", "preparing", "delivered"].includes(d.status)) {
+      try { localStorage.removeItem("satura-cart"); } catch {}
+      show("🎉", "Paiement reçu, merci !", "Ta commande est confirmée. Nous la préparons et la livrons bientôt. Garde ce code : il te permettra de laisser un avis « Cliente SATURA ».",
+        `<a class="btn" href="/#avis">Laisser un avis ♥</a>`);
+    } else if (d.status === "failed" || (cancelled && d.status === "pending")) {
+      show("❌", "Paiement non abouti", "Aucun montant n'a été validé. Ton panier est conservé : tu peux réessayer.");
+    } else if (tries < 20) {
+      setTimeout(check, 3000); // encore en attente : on revérifie
+    } else {
+      show("⏳", "Paiement en cours de vérification", "Si tu as bien payé, ta commande apparaîtra bientôt. Recharge cette page dans quelques minutes avec le même lien.");
+    }
+  }
+  check();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+SATURA BEAUTY — site complet
+=============================
+
+CE QUE FAIT LE SITE
+- Les clientes choisissent leurs produits, remplissent leur adresse et envoient leur commande sur WhatsApp (78 650 17 69), ou t'appellent.
+- Les avis s'écrivent directement sur le site. Ils n'apparaissent qu'après ta validation sur /admin.html.
+- Mode clair / sombre, animations, vitrine qui défile.
+
+MODIFIER LES PRIX OU LES TEXTES DES PRODUITS
+Ouvre catalog.js : tout est dedans (noms, prix, descriptions, photos).
+
+OPTION 1 — MISE EN LIGNE SIMPLE (glisser-déposer sur Netlify)
+Le site marche tout de suite : produits, panier, commande WhatsApp, animations.
+Les avis : le bouton "Envoyer mon avis" propose alors un envoi par WhatsApp.
+
+OPTION 2 — AVIS DIRECTS SUR LE SITE (via GitHub)
+1. Mets ce dossier dans un dépôt GitHub, puis dans Netlify : Add new site > Import from Git.
+2. Dans Netlify : Site configuration > Environment variables, ajoute  ADMIN_PASSWORD  (ton mot de passe).
+3. Redéploie. Va sur  ton-site/admin.html  pour publier ou supprimer les avis.
+
+PAIEMENT WAVE / ORANGE MONEY
+Mis de côté dans le dossier _paiement-plus-tard (instructions dedans).

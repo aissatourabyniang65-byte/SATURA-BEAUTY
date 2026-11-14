@@ -1,0 +1,3 @@
+Paiement en ligne Wave / Orange Money (PayDunya) mis de côté.
+Pour le remettre : recopier functions/*.mjs dans netlify/functions/, merci.html à la racine,
+et demander à Claude de rebrancher le panier sur /api/create-order.
